@@ -1,0 +1,641 @@
+/* ===== 기본 초기화 ===== */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  background: linear-gradient(180deg, #eef2ff 0%, #f7f8fc 100%);
+  color: #1f2430;
+  min-height: 100vh;
+}
+
+/* ===== 전체 레이아웃 ===== */
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.app-header h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+  line-height: 1.3;
+}
+
+.app-subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.storage-hint {
+  margin: 6px 0 0;
+  color: #9aa0ac;
+  font-size: 0.78rem;
+}
+
+/* ===== 입력 폼 ===== */
+.todo-form-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(31, 36, 48, 0.06);
+  margin-bottom: 24px;
+}
+
+.todo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row-inline {
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.form-field {
+  flex: 1 1 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.label-optional {
+  font-weight: 400;
+  color: #9aa0ac;
+  font-size: 0.78rem;
+}
+
+input[type="text"],
+input[type="date"],
+select {
+  padding: 10px 12px;
+  border: 1px solid #d9dce3;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background-color: #fafbfc;
+  color: #1f2430;
+  width: 100%;
+}
+
+input[type="text"]:focus,
+input[type="date"]:focus,
+select:focus {
+  outline: none;
+  border-color: #6366f1;
+  background-color: #ffffff;
+}
+
+.btn-add {
+  margin-top: 4px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background-color: #6366f1;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-add:hover {
+  background-color: #4f46e5;
+}
+
+/* ===== 보기 전환(목록 / 달력) 영역 ===== */
+.view-toggle-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  background-color: #ffffff;
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(31, 36, 48, 0.06);
+  gap: 4px;
+}
+
+.view-toggle-btn {
+  border: none;
+  background: transparent;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.view-toggle-btn.active {
+  background-color: #6366f1;
+  color: #ffffff;
+}
+
+/* ===== 완료율 표시 영역 ===== */
+.progress-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 16px rgba(31, 36, 48, 0.06);
+  margin-bottom: 24px;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.progress-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6366f1;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 10px;
+  background-color: #eef0f4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #818cf8, #6366f1);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+/* ===== 목록 영역 ===== */
+.todo-list-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(31, 36, 48, 0.06);
+}
+
+.todo-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.todo-list-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.todo-count {
+  font-size: 0.85rem;
+  color: #6b7280;
+  background-color: #f1f2f6;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #edeef2;
+  border-radius: 12px;
+  background-color: #fbfbfd;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.todo-item.completed {
+  background-color: #f4f5f8;
+}
+
+.todo-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.todo-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.todo-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-title-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2430;
+  word-break: break-word;
+}
+
+.todo-item.completed .todo-title-text {
+  text-decoration: line-through;
+  color: #9aa0ac;
+}
+
+.todo-item.completed .todo-tags {
+  opacity: 0.6;
+}
+
+.btn-delete {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid #f3c6c6;
+  border-radius: 8px;
+  background-color: #fff5f5;
+  color: #d33c3c;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-delete:hover {
+  background-color: #fde2e2;
+}
+
+.todo-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 카테고리 색상 */
+.tag-category-학과 {
+  background-color: #e0edff;
+  color: #1d4ed8;
+}
+
+.tag-category-동아리 {
+  background-color: #fdeadb;
+  color: #c2410c;
+}
+
+.tag-category-개인 {
+  background-color: #e5f9ec;
+  color: #15803d;
+}
+
+/* 중요도 색상 */
+.tag-priority-상 {
+  background-color: #fde2e2;
+  color: #b91c1c;
+}
+
+.tag-priority-중 {
+  background-color: #fff4d6;
+  color: #a16207;
+}
+
+.tag-priority-하 {
+  background-color: #e7e9ee;
+  color: #4b5563;
+}
+
+.tag-deadline {
+  background-color: #eef1ff;
+  color: #4338ca;
+}
+
+/* ===== 달력 보기 영역 ===== */
+.calendar-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(31, 36, 48, 0.06);
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.calendar-month-label {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.calendar-nav-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid #e2e4ea;
+  background-color: #fafbfc;
+  color: #374151;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.calendar-nav-btn:hover {
+  background-color: #eef0f4;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #6b7280;
+  padding: 4px 0;
+}
+
+.calendar-weekday.sunday {
+  color: #d33c3c;
+}
+
+.calendar-weekday.saturday {
+  color: #1d4ed8;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.calendar-cell {
+  min-height: 88px;
+  border: 1px solid #eef0f4;
+  border-radius: 10px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background-color: #fbfbfd;
+}
+
+.calendar-cell.outside-month {
+  background-color: #f6f7f9;
+  opacity: 0.55;
+}
+
+.calendar-cell.is-today {
+  border-color: #6366f1;
+  box-shadow: inset 0 0 0 1px #6366f1;
+}
+
+.calendar-date-number {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #374151;
+  padding-left: 2px;
+}
+
+.calendar-cell.outside-month .calendar-date-number {
+  color: #9aa0ac;
+}
+
+.calendar-bar {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-align: left;
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+
+.calendar-bar.bar-start {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  margin-left: 0;
+}
+
+.calendar-bar.bar-end {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.calendar-bar.bar-middle {
+  border-radius: 0;
+}
+
+/* 카테고리별 막대 색상 */
+.calendar-bar.bar-category-학과 {
+  background-color: #3b82f6;
+}
+
+.calendar-bar.bar-category-동아리 {
+  background-color: #f97316;
+}
+
+.calendar-bar.bar-category-개인 {
+  background-color: #22c55e;
+}
+
+.calendar-bar.completed {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.calendar-bar-delete {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.25);
+  border: none;
+  color: #ffffff;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  font-size: 0.6rem;
+  line-height: 14px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.calendar-more {
+  font-size: 0.68rem;
+  color: #9aa0ac;
+  padding-left: 2px;
+}
+
+.calendar-hint {
+  margin: 12px 0 0;
+  text-align: center;
+  color: #9aa0ac;
+  font-size: 0.8rem;
+}
+
+.calendar-undated {
+  margin-top: 20px;
+  border-top: 1px solid #edeef2;
+  padding-top: 14px;
+}
+
+.calendar-undated h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+/* ===== 빈 목록 안내 문구 ===== */
+.empty-message {
+  text-align: center;
+  color: #9aa0ac;
+  font-size: 0.9rem;
+  padding: 24px 0;
+  margin: 0;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ===== 반응형 ===== */
+
+/* 태블릿 화면: 좌우 여백을 살짝 줄여 더 넓게 활용합니다. */
+@media (max-width: 768px) {
+  .app {
+    padding: 24px 16px 48px;
+  }
+}
+
+/* 휴대폰 화면: 입력 필드를 세로로 쌓고, 목록 항목도 보기 편하게 재배치합니다. */
+@media (max-width: 480px) {
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .todo-form-section,
+  .progress-section,
+  .todo-list-section,
+  .calendar-section {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .form-row-inline {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .btn-add {
+    width: 100%;
+  }
+
+  .progress-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .todo-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .tag-deadline {
+    white-space: normal;
+  }
+
+  .view-toggle-btn {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+
+  .calendar-cell {
+    min-height: 64px;
+    padding: 4px 2px;
+  }
+
+  .calendar-date-number {
+    font-size: 0.7rem;
+  }
+
+  .calendar-bar {
+    font-size: 0.6rem;
+    padding: 2px 4px;
+  }
+
+  .calendar-weekdays {
+    font-size: 0.72rem;
+  }
+
+  .todo-item-main {
+    order: 1;
+    flex-basis: 100%;
+  }
+
+  .btn-delete {
+    order: 2;
+    margin-left: auto;
+  }
+}
