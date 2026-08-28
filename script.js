@@ -29,6 +29,47 @@ const PRIORITY_PALETTE = [
 const DEFAULT_CATEGORIES = ["학과", "동아리", "개인"];
 const DEFAULT_PRIORITIES  = ["상", "중", "하"];
 
+// ===== 공휴일 데이터 =====
+// 고정 공휴일 (매년 동일, MM-DD 키)
+const FIXED_HOLIDAYS = {
+  "01-01": "신정",
+  "03-01": "삼일절",
+  "05-05": "어린이날",
+  "06-06": "현충일",
+  "08-15": "광복절",
+  "10-03": "개천절",
+  "10-09": "한글날",
+  "12-25": "성탄절",
+};
+
+// 음력 기반 공휴일 (연도별 양력 날짜, YYYY-MM-DD 키)
+const LUNAR_HOLIDAYS = {
+  // 2024
+  "2024-02-09": "설날 전날", "2024-02-10": "설날", "2024-02-11": "설날 다음날", "2024-02-12": "대체공휴일",
+  "2024-05-15": "부처님오신날",
+  "2024-09-16": "추석 전날", "2024-09-17": "추석", "2024-09-18": "추석 다음날",
+  // 2025
+  "2025-01-28": "설날 전날", "2025-01-29": "설날", "2025-01-30": "설날 다음날",
+  "2025-03-03": "대체공휴일",
+  "2025-05-05": "부처님오신날",
+  "2025-05-06": "대체공휴일",
+  "2025-10-05": "추석 전날", "2025-10-06": "추석", "2025-10-07": "추석 다음날", "2025-10-08": "대체공휴일",
+  // 2026
+  "2026-02-16": "설날 전날", "2026-02-17": "설날", "2026-02-18": "설날 다음날",
+  "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
+  "2026-09-24": "추석 전날", "2026-09-25": "추석", "2026-09-26": "추석 다음날", "2026-09-28": "대체공휴일",
+  // 2027
+  "2027-02-05": "설날 전날", "2027-02-06": "설날", "2027-02-07": "설날 다음날", "2027-02-08": "대체공휴일",
+  "2027-05-13": "부처님오신날",
+  "2027-09-14": "추석 전날", "2027-09-15": "추석", "2027-09-16": "추석 다음날",
+};
+
+function getHolidayName(dateKey) {
+  if (LUNAR_HOLIDAYS[dateKey]) return LUNAR_HOLIDAYS[dateKey];
+  const md = dateKey.slice(5); // "MM-DD"
+  return FIXED_HOLIDAYS[md] || null;
+}
+
 // ===== 상태 =====
 let todos          = loadTodos();
 let categories     = loadList(CATEGORIES_KEY, DEFAULT_CATEGORIES);
@@ -458,9 +499,14 @@ function renderCalendar() {
   for (let i = 0; i < 42; i++) {
     const cellDate = new Date(gridStart);
     cellDate.setDate(gridStart.getDate() + i);
-    const cellKey   = toDateKey(cellDate);
-    const isOutside = cellDate.getMonth() !== calendarMonth;
-    const isToday   = cellKey === todayKey;
+    const cellKey    = toDateKey(cellDate);
+    const isOutside  = cellDate.getMonth() !== calendarMonth;
+    const isToday    = cellKey === todayKey;
+    const dayOfWeek  = cellDate.getDay();
+    const isSunday   = dayOfWeek === 0;
+    const isSaturday = dayOfWeek === 6;
+    const holidayName = getHolidayName(cellKey);
+    const isHoliday  = !!holidayName;
 
     const todosOnDate = datedTodos.filter(({ range }) =>
       range.start <= cellKey && cellKey <= range.end);
@@ -470,12 +516,22 @@ function renderCalendar() {
     cell.className = "calendar-cell"
       + (isOutside   ? " outside-month" : "")
       + (isToday     ? " is-today"      : "")
-      + (hasSelected ? " has-selected"  : "");
+      + (hasSelected ? " has-selected"  : "")
+      + (isSunday    ? " is-sunday"     : "")
+      + (isSaturday  ? " is-saturday"   : "")
+      + (isHoliday   ? " is-holiday"    : "");
 
     const dateNum = document.createElement("div");
     dateNum.className = "calendar-date-number";
     dateNum.textContent = cellDate.getDate();
     cell.appendChild(dateNum);
+
+    if (holidayName && !isOutside) {
+      const nameEl = document.createElement("div");
+      nameEl.className = "calendar-holiday-name";
+      nameEl.textContent = holidayName;
+      cell.appendChild(nameEl);
+    }
 
     const MAX = 3;
     todosOnDate.slice(0, MAX).forEach(({ todo, range }) =>

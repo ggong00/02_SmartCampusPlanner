@@ -302,8 +302,30 @@ body.dark {
   padding-left: 2px;
 }
 
+/* 주말 & 공휴일 날짜 색상 */
+.calendar-cell.is-sunday .calendar-date-number,
+.calendar-cell.is-holiday .calendar-date-number {
+  color: #ef4444;
+}
+
+.calendar-cell.is-saturday .calendar-date-number {
+  color: #3b82f6;
+}
+
+/* outside-month는 항상 muted 유지 */
 .calendar-cell.outside-month .calendar-date-number {
   color: var(--text-muted);
+}
+
+/* 공휴일 이름 */
+.calendar-holiday-name {
+  font-size: 9px;
+  color: #ef4444;
+  line-height: 1.2;
+  padding-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 달력 막대 */
