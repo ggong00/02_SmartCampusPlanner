@@ -7,126 +7,175 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app">
+  <div id="app" class="app">
+
+    <!-- ===== 헤더 ===== -->
     <header class="app-header">
-      <h1>🎓 Smart Campus Planner</h1>
-      <p class="app-subtitle">학과 · 동아리 · 개인 할 일을 한곳에서 관리하세요</p>
-      <p class="storage-hint">입력한 내용은 이 브라우저에 자동 저장되어, 새로고침해도 유지돼요.</p>
+      <div class="header-top">
+        <div class="header-title">
+          <h1>🎓 Smart Campus Planner</h1>
+          <p class="app-subtitle">학과 · 동아리 · 개인 할 일을 한곳에서 관리하세요</p>
+        </div>
+        <div class="header-utils">
+          <button id="settings-btn" class="btn-util" title="설정">⚙️ 설정</button>
+          <button id="dark-mode-btn" class="btn-util" title="다크 모드 전환">🌙</button>
+          <button id="export-btn" class="btn-util" title="데이터 내보내기">⬇ 내보내기</button>
+          <label for="import-input" class="btn-util" title="데이터 가져오기" style="cursor:pointer;">⬆ 가져오기</label>
+          <input type="file" id="import-input" accept=".json" class="visually-hidden" />
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <input type="search" id="search-input" class="search-input" placeholder="🔍  할 일 검색..." />
+        <div class="filter-group">
+          <select id="filter-category">
+            <option value="all">전체 카테고리</option>
+            <option value="학과">학과</option>
+            <option value="동아리">동아리</option>
+            <option value="개인">개인</option>
+          </select>
+          <select id="filter-priority">
+            <option value="all">전체 중요도</option>
+            <option value="상">상</option>
+            <option value="중">중</option>
+            <option value="하">하</option>
+          </select>
+          <select id="filter-status">
+            <option value="all">전체 상태</option>
+            <option value="미완료">미완료</option>
+            <option value="완료">완료</option>
+          </select>
+          <select id="sort-by">
+            <option value="created">등록순</option>
+            <option value="deadline">마감일순</option>
+            <option value="priority">중요도순</option>
+          </select>
+        </div>
+      </div>
     </header>
 
-    <section class="todo-form-section">
-      <form id="todo-form" class="todo-form">
-        <div class="form-row">
-          <label for="todo-title">할 일</label>
-          <input
-            type="text"
-            id="todo-title"
-            name="title"
-            placeholder="예) 데이터베이스 과제 제출하기"
-            required
-          />
+    <!-- ===== 탭 전환 (태블릿/모바일 전용) ===== -->
+    <div class="mobile-tabs" id="mobile-tabs">
+      <button class="mobile-tab-btn active" data-tab="list">📋 목록</button>
+      <button class="mobile-tab-btn" data-tab="calendar">🗓️ 달력</button>
+    </div>
+
+    <!-- ===== 메인 레이아웃 (달력 좌 / 목록 우) ===== -->
+    <main class="main-layout" id="main-layout" data-tab="list">
+
+      <!-- 달력 패널 (좌) -->
+      <section class="calendar-panel">
+        <div class="calendar-header">
+          <button type="button" id="calendar-prev-btn" class="calendar-nav-btn" aria-label="이전 달">‹</button>
+          <h2 id="calendar-month-label" class="calendar-month-label">-</h2>
+          <button type="button" id="calendar-next-btn" class="calendar-nav-btn" aria-label="다음 달">›</button>
         </div>
 
-        <div class="form-row form-row-inline">
-          <div class="form-field">
-            <label for="todo-category">카테고리</label>
-            <select id="todo-category" name="category">
-              <option value="학과">학과</option>
-              <option value="동아리">동아리</option>
-              <option value="개인">개인</option>
-            </select>
-          </div>
-
-          <div class="form-field">
-            <label for="todo-priority">중요도</label>
-            <select id="todo-priority" name="priority">
-              <option value="상">상</option>
-              <option value="중" selected>중</option>
-              <option value="하">하</option>
-            </select>
-          </div>
-
-          <div class="form-field">
-            <label for="todo-start-date">시작일 <span class="label-optional">(선택)</span></label>
-            <input type="date" id="todo-start-date" name="startDate" />
-          </div>
-
-          <div class="form-field">
-            <label for="todo-deadline">마감일</label>
-            <input type="date" id="todo-deadline" name="deadline" />
-          </div>
+        <div class="calendar-weekdays">
+          <span class="sunday">일</span>
+          <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span>
+          <span class="saturday">토</span>
         </div>
 
-        <button type="submit" class="btn-add">+ 할 일 추가</button>
-      </form>
-    </section>
+        <div id="calendar-grid" class="calendar-grid"></div>
 
-    <section class="view-toggle-section">
-      <div class="view-toggle" role="tablist" aria-label="보기 방식 전환">
-        <button type="button" class="view-toggle-btn active" data-view="list" role="tab" aria-selected="true">
-          📋 목록 보기
-        </button>
-        <button type="button" class="view-toggle-btn" data-view="calendar" role="tab" aria-selected="false">
-          🗓️ 달력 보기
-        </button>
+      </section>
+
+      <!-- 목록 패널 (우) -->
+      <section class="list-panel">
+
+        <!-- 완료율 + 카테고리별 진행률 -->
+        <div class="progress-card">
+          <div class="progress-header">
+            <span class="progress-label">전체 완료율</span>
+            <span id="progress-text" class="progress-text">0 / 0 완료 (0%)</span>
+          </div>
+          <div class="progress-bar-track">
+            <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div id="category-stats" class="category-stats"></div>
+        </div>
+
+        <!-- 할 일 추가 (접고 펼치기) -->
+        <div class="add-section">
+          <button type="button" id="toggle-form-btn" class="btn-add-toggle">+ 할 일 추가</button>
+          <form id="todo-form" class="todo-form hidden">
+            <input type="text" id="todo-title" placeholder="할 일 제목" required />
+            <textarea id="todo-memo" placeholder="메모 (선택)" rows="2"></textarea>
+            <div class="form-row-inline">
+              <select id="todo-category">
+                <option value="학과">학과</option>
+                <option value="동아리">동아리</option>
+                <option value="개인">개인</option>
+              </select>
+              <select id="todo-priority">
+                <option value="상">상</option>
+                <option value="중" selected>중</option>
+                <option value="하">하</option>
+              </select>
+            </div>
+            <div class="form-row-inline">
+              <div class="form-field">
+                <label for="todo-start-date">시작일 <span class="label-optional">(선택)</span></label>
+                <input type="date" id="todo-start-date" />
+              </div>
+              <div class="form-field">
+                <label for="todo-deadline">마감일</label>
+                <input type="date" id="todo-deadline" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-submit">추가</button>
+              <button type="button" id="cancel-form-btn" class="btn-cancel">취소</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 할 일 목록 -->
+        <div class="list-section">
+          <div class="list-header">
+            <h2>할 일 목록</h2>
+            <span id="todo-count" class="todo-count">0개</span>
+          </div>
+          <ul id="todo-list" class="todo-list"></ul>
+          <p id="empty-message" class="empty-message hidden">
+            조건에 맞는 할 일이 없어요.
+          </p>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- ===== 설정 모달 ===== -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h2>⚙️ 설정</h2>
+        <button id="close-settings-btn" class="modal-close">×</button>
       </div>
-    </section>
+      <div class="modal-body">
 
-    <section class="progress-section">
-      <div class="progress-header">
-        <span class="progress-label">전체 완료율</span>
-        <span id="progress-text" class="progress-text">0 / 0 완료 (0%)</span>
+        <section class="settings-section">
+          <h3>카테고리</h3>
+          <div id="settings-category-list" class="settings-chip-list"></div>
+          <div class="settings-add-row">
+            <input id="new-category-input" type="text" placeholder="새 카테고리 이름" maxlength="20" />
+            <button id="add-category-btn" class="btn-submit">추가</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>중요도</h3>
+          <div id="settings-priority-list" class="settings-chip-list"></div>
+          <div class="settings-add-row">
+            <input id="new-priority-input" type="text" placeholder="새 중요도 이름" maxlength="20" />
+            <button id="add-priority-btn" class="btn-submit">추가</button>
+          </div>
+        </section>
+
       </div>
-      <div class="progress-bar-track">
-        <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%"></div>
-      </div>
-    </section>
-
-    <section id="list-view" class="todo-list-section">
-      <div class="todo-list-header">
-        <h2>할 일 목록</h2>
-        <span id="todo-count" class="todo-count">0개</span>
-      </div>
-
-      <ul id="todo-list" class="todo-list">
-        <!-- 할 일 항목이 여기에 동적으로 추가됩니다 -->
-      </ul>
-
-      <p id="empty-message" class="empty-message">
-        아직 등록된 할 일이 없어요. 위 양식으로 첫 할 일을 추가해보세요!
-      </p>
-    </section>
-
-    <section id="calendar-view" class="calendar-section hidden">
-      <div class="calendar-header">
-        <button type="button" id="calendar-prev-btn" class="calendar-nav-btn" aria-label="이전 달">‹</button>
-        <h2 id="calendar-month-label" class="calendar-month-label">-</h2>
-        <button type="button" id="calendar-next-btn" class="calendar-nav-btn" aria-label="다음 달">›</button>
-      </div>
-
-      <div class="calendar-weekdays">
-        <span class="calendar-weekday sunday">일</span>
-        <span class="calendar-weekday">월</span>
-        <span class="calendar-weekday">화</span>
-        <span class="calendar-weekday">수</span>
-        <span class="calendar-weekday">목</span>
-        <span class="calendar-weekday">금</span>
-        <span class="calendar-weekday saturday">토</span>
-      </div>
-
-      <div id="calendar-grid" class="calendar-grid">
-        <!-- 날짜 칸이 여기에 동적으로 추가됩니다 -->
-      </div>
-
-      <p class="calendar-hint">일정을 클릭하면 완료 체크, ×를 누르면 삭제할 수 있어요.</p>
-
-      <div id="calendar-undated" class="calendar-undated hidden">
-        <h3>날짜가 없는 할 일</h3>
-        <ul id="calendar-undated-list" class="todo-list">
-          <!-- 시작일/마감일이 없는 할 일이 여기에 표시됩니다 -->
-        </ul>
-      </div>
-    </section>
+    </div>
   </div>
 
   <script src="script.js"></script>

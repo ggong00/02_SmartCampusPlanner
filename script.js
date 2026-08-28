@@ -1,512 +1,782 @@
-// ===== Smart Campus Planner - 5단계: 리스트 ↔ 달력 전환 & 기간 시각화 =====
-// 1~4단계(할 일 등록, 완료 체크·삭제·완료율, 새로고침 저장, 시작일~마감일 지정)
-// 기능은 모두 그대로 유지하면서, 목록 보기와 달력 보기를 전환하고
-// 달력 위에 할 일의 기간을 막대(바) 형태로 보여주는 기능을 추가했습니다.
+// ===== Smart Campus Planner =====
 
-// localStorage에 데이터를 저장할 때 사용할 key 이름입니다.
-const STORAGE_KEY = "smart-campus-planner-todos";
+const STORAGE_KEY    = "smart-campus-planner-todos";
+const DARK_KEY       = "smart-campus-planner-dark";
+const CATEGORIES_KEY = "smart-campus-planner-categories";
+const PRIORITIES_KEY = "smart-campus-planner-priorities";
 
-// 화면의 각 요소를 가져옵니다.
-const todoForm = document.getElementById("todo-form");
-const titleInput = document.getElementById("todo-title");
+// ===== 컬러 팔레트 =====
+const CATEGORY_PALETTE = [
+  { barColor: "#3b82f6", tagBg: "#dbeafe", tagColor: "#1d4ed8" },
+  { barColor: "#f97316", tagBg: "#ffedd5", tagColor: "#c2410c" },
+  { barColor: "#22c55e", tagBg: "#dcfce7", tagColor: "#15803d" },
+  { barColor: "#a855f7", tagBg: "#f3e8ff", tagColor: "#7e22ce" },
+  { barColor: "#ec4899", tagBg: "#fce7f3", tagColor: "#9d174d" },
+  { barColor: "#14b8a6", tagBg: "#ccfbf1", tagColor: "#115e59" },
+  { barColor: "#f59e0b", tagBg: "#fef3c7", tagColor: "#92400e" },
+  { barColor: "#6366f1", tagBg: "#eef2ff", tagColor: "#4338ca" },
+];
+
+const PRIORITY_PALETTE = [
+  { tagBg: "#fee2e2", tagColor: "#b91c1c" },
+  { tagBg: "#fef9c3", tagColor: "#a16207" },
+  { tagBg: "#f1f5f9", tagColor: "#475569" },
+  { tagBg: "#f3e8ff", tagColor: "#7e22ce" },
+  { tagBg: "#dcfce7", tagColor: "#15803d" },
+  { tagBg: "#fce7f3", tagColor: "#9d174d" },
+];
+
+const DEFAULT_CATEGORIES = ["학과", "동아리", "개인"];
+const DEFAULT_PRIORITIES  = ["상", "중", "하"];
+
+// ===== 상태 =====
+let todos          = loadTodos();
+let categories     = loadList(CATEGORIES_KEY, DEFAULT_CATEGORIES);
+let priorities     = loadList(PRIORITIES_KEY, DEFAULT_PRIORITIES);
+let searchQuery    = "";
+let filterCategory = "all";
+let filterPriority = "all";
+let filterStatus   = "all";
+let sortBy         = "created";
+let selectedTodoId = null;
+let editingTodoId  = null;
+let calendarYear   = new Date().getFullYear();
+let calendarMonth  = new Date().getMonth();
+let isDarkMode     = localStorage.getItem(DARK_KEY) === "true";
+let filteredTodos  = [];
+
+// ===== DOM =====
+const appEl            = document.getElementById("app");
+const searchInput      = document.getElementById("search-input");
+const filterCategoryEl = document.getElementById("filter-category");
+const filterPriorityEl = document.getElementById("filter-priority");
+const filterStatusEl   = document.getElementById("filter-status");
+const sortByEl         = document.getElementById("sort-by");
+const darkModeBtn      = document.getElementById("dark-mode-btn");
+const exportBtn        = document.getElementById("export-btn");
+const importInput      = document.getElementById("import-input");
+const settingsBtn      = document.getElementById("settings-btn");
+
+const todoForm       = document.getElementById("todo-form");
+const titleInput     = document.getElementById("todo-title");
+const memoInput      = document.getElementById("todo-memo");
 const categorySelect = document.getElementById("todo-category");
 const prioritySelect = document.getElementById("todo-priority");
 const startDateInput = document.getElementById("todo-start-date");
-const deadlineInput = document.getElementById("todo-deadline");
+const deadlineInput  = document.getElementById("todo-deadline");
+const toggleFormBtn  = document.getElementById("toggle-form-btn");
+const cancelFormBtn  = document.getElementById("cancel-form-btn");
 
-const todoListEl = document.getElementById("todo-list");
-const todoCountEl = document.getElementById("todo-count");
-const emptyMessageEl = document.getElementById("empty-message");
-
-const progressTextEl = document.getElementById("progress-text");
+const todoListEl       = document.getElementById("todo-list");
+const todoCountEl      = document.getElementById("todo-count");
+const emptyMsgEl       = document.getElementById("empty-message");
+const progressTextEl   = document.getElementById("progress-text");
 const progressBarFillEl = document.getElementById("progress-bar-fill");
+const categoryStatsEl  = document.getElementById("category-stats");
 
-// 보기 전환(목록/달력) 관련 요소
-const viewToggleButtons = document.querySelectorAll(".view-toggle-btn");
-const listViewEl = document.getElementById("list-view");
-const calendarViewEl = document.getElementById("calendar-view");
-
-// 달력 보기 관련 요소
-const calendarPrevBtn = document.getElementById("calendar-prev-btn");
-const calendarNextBtn = document.getElementById("calendar-next-btn");
+const calendarPrevBtn      = document.getElementById("calendar-prev-btn");
+const calendarNextBtn      = document.getElementById("calendar-next-btn");
 const calendarMonthLabelEl = document.getElementById("calendar-month-label");
-const calendarGridEl = document.getElementById("calendar-grid");
-const calendarUndatedEl = document.getElementById("calendar-undated");
-const calendarUndatedListEl = document.getElementById("calendar-undated-list");
+const calendarGridEl       = document.getElementById("calendar-grid");
 
-// 현재 어떤 보기(목록/달력)가 활성화되어 있는지 기억하는 변수입니다.
-let currentView = "list";
+const mainLayoutEl  = document.getElementById("main-layout");
+const mobileTabBtns = document.querySelectorAll(".mobile-tab-btn");
 
-// 달력에 표시 중인 "년/월"을 기억하는 변수입니다. (오늘 날짜의 년/월로 시작합니다.)
-let calendarYear = new Date().getFullYear();
-let calendarMonth = new Date().getMonth(); // 0(1월) ~ 11(12월)
+// 설정 모달
+const settingsModal        = document.getElementById("settings-modal");
+const closeSettingsBtn     = document.getElementById("close-settings-btn");
+const settingsCategoryList = document.getElementById("settings-category-list");
+const settingsPriorityList = document.getElementById("settings-priority-list");
+const newCategoryInput     = document.getElementById("new-category-input");
+const newPriorityInput     = document.getElementById("new-priority-input");
+const addCategoryBtn       = document.getElementById("add-category-btn");
+const addPriorityBtn       = document.getElementById("add-priority-btn");
 
-// 등록된 할 일들을 메모리에 저장해두는 배열입니다.
-// 페이지가 열릴 때 localStorage에 저장된 값이 있으면 그 값으로 초기화합니다.
-let todos = loadTodos();
-
-// localStorage에서 저장된 할 일 목록을 불러오는 함수입니다.
-// 저장된 값이 없거나, 저장된 값이 손상되어 읽을 수 없는 경우에는 빈 배열을 반환합니다.
+// ===== 저장 / 불러오기 =====
 function loadTodos() {
   try {
-    const savedJson = localStorage.getItem(STORAGE_KEY);
-    if (!savedJson) {
-      return [];
-    }
-    const parsed = JSON.parse(savedJson);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
     return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("저장된 할 일 목록을 불러오는 중 문제가 발생했습니다.", error);
-    return [];
-  }
+  } catch { return []; }
 }
 
-// 현재 todos 배열을 localStorage에 저장하는 함수입니다.
-// 할 일이 추가/완료체크/삭제되어 todos 배열이 바뀔 때마다 이 함수를 호출합니다.
 function saveTodos() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-  } catch (error) {
-    console.error("할 일 목록을 저장하는 중 문제가 발생했습니다.", error);
-  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(todos)); }
+  catch (e) { console.error("저장 실패", e); }
 }
 
-// 할 일 각각을 구분하기 위한 고유 id를 만들어주는 함수입니다.
+function loadList(key, defaults) {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return [...defaults];
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [...defaults];
+  } catch { return [...defaults]; }
+}
+
+function saveSettings() {
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  localStorage.setItem(PRIORITIES_KEY, JSON.stringify(priorities));
+}
+
+// ===== 컬러 헬퍼 =====
+function getCategoryStyle(name) {
+  const idx = categories.indexOf(name);
+  return CATEGORY_PALETTE[(idx < 0 ? 0 : idx) % CATEGORY_PALETTE.length];
+}
+
+function getPriorityStyle(name) {
+  const idx = priorities.indexOf(name);
+  return PRIORITY_PALETTE[(idx < 0 ? 0 : idx) % PRIORITY_PALETTE.length];
+}
+
+// ===== 드롭다운 동기화 =====
+function updateSelectOptions() {
+  // 추가 폼 — 카테고리
+  const prevCat = categorySelect.value;
+  categorySelect.innerHTML = categories
+    .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  categorySelect.value = categories.includes(prevCat) ? prevCat : categories[0];
+
+  // 추가 폼 — 중요도
+  const prevPri = prioritySelect.value;
+  prioritySelect.innerHTML = priorities
+    .map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  if (priorities.includes(prevPri)) {
+    prioritySelect.value = prevPri;
+  } else {
+    prioritySelect.value = priorities[Math.min(1, priorities.length - 1)] || priorities[0];
+  }
+
+  // 필터 — 카테고리
+  const prevFCat = filterCategoryEl.value;
+  filterCategoryEl.innerHTML =
+    `<option value="all">전체 카테고리</option>` +
+    categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  filterCategoryEl.value = categories.includes(prevFCat) ? prevFCat : "all";
+
+  // 필터 — 중요도
+  const prevFPri = filterPriorityEl.value;
+  filterPriorityEl.innerHTML =
+    `<option value="all">전체 중요도</option>` +
+    priorities.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  filterPriorityEl.value = priorities.includes(prevFPri) ? prevFPri : "all";
+}
+
+// ===== 유틸 =====
 function createId() {
   return `todo-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
 
-// 날짜(YYYY-MM-DD)를 보기 편한 "YYYY.MM.DD" 형식으로 바꿔주는 함수입니다.
-function formatDate(dateString) {
-  const [year, month, day] = dateString.split("-");
-  return `${year}.${month}.${day}`;
+function formatDate(str) {
+  if (!str) return "";
+  const [y, m, d] = str.split("-");
+  return `${y}.${m}.${d}`;
 }
 
-// 할 일의 시작일/마감일 정보를 화면에 보여줄 문구로 만들어주는 함수입니다.
-// - 시작일과 마감일이 모두 있으면: "YYYY.MM.DD ~ YYYY.MM.DD"
-// - 마감일만 있으면(기존 방식): "YYYY.MM.DD 까지"
-// - 아무 것도 없으면: "마감일 없음"
-function formatPeriod(startDate, deadline) {
-  if (startDate && deadline) {
-    return `${formatDate(startDate)} ~ ${formatDate(deadline)}`;
-  }
-  if (deadline) {
-    return `${formatDate(deadline)} 까지`;
-  }
-  if (startDate) {
-    return `${formatDate(startDate)} 부터`;
-  }
-  return "마감일 없음";
+function formatPeriod(start, end) {
+  if (start && end) return `${formatDate(start)} ~ ${formatDate(end)}`;
+  if (end)   return `${formatDate(end)} 까지`;
+  if (start) return `${formatDate(start)} 부터`;
+  return "";
 }
 
-// 사용자가 입력한 텍스트를 안전하게 화면에 표시하기 위해
-// <, >, & 같은 특수문자를 이스케이프 처리하는 함수입니다.
 function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
 }
 
-// 할 일 목록(todos 배열)을 실제 화면(HTML)에 그려주는 함수입니다.
-function renderTodos() {
-  // 목록을 비운 뒤 다시 그립니다.
-  todoListEl.innerHTML = "";
-
-  // 등록된 할 일이 하나도 없으면 안내 문구를 보여줍니다.
-  if (todos.length === 0) {
-    emptyMessageEl.classList.remove("hidden");
-  } else {
-    emptyMessageEl.classList.add("hidden");
-  }
-
-  todos.forEach((todo) => {
-    const li = document.createElement("li");
-    li.className = "todo-item" + (todo.completed ? " completed" : "");
-    li.dataset.id = todo.id;
-
-    li.innerHTML = `
-      <label class="todo-checkbox-wrap">
-        <input
-          type="checkbox"
-          class="todo-checkbox"
-          data-id="${todo.id}"
-          ${todo.completed ? "checked" : ""}
-        />
-      </label>
-      <div class="todo-item-main">
-        <span class="todo-title-text">${escapeHtml(todo.title)}</span>
-        <div class="todo-tags">
-          <span class="tag tag-category-${todo.category}">${todo.category}</span>
-          <span class="tag tag-priority-${todo.priority}">중요도 ${todo.priority}</span>
-          <span class="tag tag-deadline">${formatPeriod(todo.startDate, todo.deadline)}</span>
-        </div>
-      </div>
-      <button type="button" class="btn-delete" data-id="${todo.id}" aria-label="삭제">
-        삭제
-      </button>
-    `;
-
-    todoListEl.appendChild(li);
-  });
-
-  // 목록 상단의 "n개" 표시를 갱신합니다.
-  todoCountEl.textContent = `${todos.length}개`;
-
-  // 완료율을 다시 계산해서 화면에 반영합니다.
-  renderProgress();
-
-  // 달력 보기도 최신 데이터 기준으로 함께 갱신해줍니다.
-  // (지금 화면에 보이지 않더라도, 나중에 달력 보기로 전환했을 때 바로 최신 내용이 보이도록 합니다.)
-  renderCalendar();
+function getDday(deadline) {
+  if (!deadline) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due   = new Date(deadline); due.setHours(0, 0, 0, 0);
+  return Math.round((due - today) / 86400000);
 }
 
-// ===== 여기부터는 5단계: 달력 보기 관련 기능입니다 =====
+function formatDday(days) {
+  if (days === null) return "";
+  if (days === 0) return "D-day";
+  if (days > 0)  return `D-${days}`;
+  return `D+${Math.abs(days)}`;
+}
 
-// 할 일 하나의 "실제 표시 기간"을 계산해주는 함수입니다.
-// - 시작일과 마감일이 모두 있으면 그대로 사용
-// - 마감일만 있으면 시작일=마감일(하루짜리)로 취급
-// - 시작일만 있으면 마감일=시작일(하루짜리)로 취급
-// - 둘 다 없으면 null을 반환합니다(달력에는 표시할 날짜가 없다는 뜻).
+function getDdayClass(days) {
+  if (days === null) return "";
+  if (days < 0)  return "dday-past";
+  if (days === 0) return "dday-today";
+  if (days <= 3)  return "dday-soon";
+  return "dday-normal";
+}
+
+// ===== 필터 & 정렬 =====
+function applyFilters() {
+  const q = searchQuery.trim().toLowerCase();
+  filteredTodos = todos
+    .filter(todo => {
+      if (filterCategory !== "all" && todo.category !== filterCategory) return false;
+      if (filterPriority !== "all" && todo.priority !== filterPriority) return false;
+      if (filterStatus === "미완료" && todo.completed)  return false;
+      if (filterStatus === "완료"   && !todo.completed) return false;
+      if (q) {
+        const inTitle = todo.title.toLowerCase().includes(q);
+        const inMemo  = (todo.memo || "").toLowerCase().includes(q);
+        if (!inTitle && !inMemo) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "deadline") {
+        if (!a.deadline && !b.deadline) return 0;
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return a.deadline.localeCompare(b.deadline);
+      }
+      if (sortBy === "priority") {
+        const order = Object.fromEntries(priorities.map((p, i) => [p, i]));
+        return (order[a.priority] ?? 99) - (order[b.priority] ?? 99);
+      }
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+}
+
+// ===== 전체 렌더 =====
+function renderAll() {
+  applyFilters();
+  renderList();
+  renderCalendar();
+  renderProgress();
+  renderCategoryStats();
+}
+
+// ===== 완료율 =====
+function renderProgress() {
+  const total = todos.length;
+  const done  = todos.filter(t => t.completed).length;
+  const pct   = total === 0 ? 0 : Math.round((done / total) * 100);
+  progressTextEl.textContent  = `${done} / ${total} 완료 (${pct}%)`;
+  progressBarFillEl.style.width = `${pct}%`;
+}
+
+// ===== 카테고리별 진행률 =====
+function renderCategoryStats() {
+  categoryStatsEl.innerHTML = categories.map(cat => {
+    const catTodos = todos.filter(t => t.category === cat);
+    if (catTodos.length === 0) return "";
+    const done = catTodos.filter(t => t.completed).length;
+    const pct  = Math.round((done / catTodos.length) * 100);
+    const style = getCategoryStyle(cat);
+    return `
+      <div class="cat-stat">
+        <div class="cat-stat-header">
+          <span class="tag" style="background:${style.tagBg};color:${style.tagColor}">${escapeHtml(cat)}</span>
+          <span class="cat-stat-count">${done} / ${catTodos.length}</span>
+        </div>
+        <div class="cat-stat-bar-track">
+          <div class="cat-stat-bar-fill" style="width:${pct}%;background:${style.barColor}"></div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// ===== 목록 렌더 =====
+function renderList() {
+  todoListEl.innerHTML = "";
+  if (filteredTodos.length === 0) {
+    emptyMsgEl.classList.remove("hidden");
+  } else {
+    emptyMsgEl.classList.add("hidden");
+  }
+  filteredTodos.forEach(todo => {
+    todoListEl.appendChild(
+      editingTodoId === todo.id ? createEditItem(todo) : createTodoItem(todo)
+    );
+  });
+  todoCountEl.textContent = `${filteredTodos.length}개`;
+}
+
+function createTodoItem(todo) {
+  const li = document.createElement("li");
+  const isSelected = todo.id === selectedTodoId;
+  li.className = "todo-item"
+    + (todo.completed ? " completed" : "")
+    + (isSelected    ? " selected"   : "");
+  li.dataset.id = todo.id;
+
+  const ddays     = getDday(todo.deadline);
+  const ddayText  = formatDday(ddays);
+  const ddayClass = getDdayClass(ddays);
+  const period    = formatPeriod(todo.startDate, todo.deadline);
+  const catStyle  = getCategoryStyle(todo.category);
+  const priStyle  = getPriorityStyle(todo.priority);
+
+  li.innerHTML = `
+    <label class="todo-checkbox-wrap">
+      <input type="checkbox" class="todo-checkbox" data-id="${todo.id}" ${todo.completed ? "checked" : ""} />
+    </label>
+    <div class="todo-item-main">
+      <div class="todo-title-row">
+        <span class="todo-title-text">${escapeHtml(todo.title)}</span>
+        ${ddayText ? `<span class="dday-badge ${ddayClass}">${ddayText}</span>` : ""}
+      </div>
+      ${todo.memo ? `<p class="todo-memo">${escapeHtml(todo.memo)}</p>` : ""}
+      <div class="todo-tags">
+        <span class="tag" style="background:${catStyle.tagBg};color:${catStyle.tagColor}">${escapeHtml(todo.category)}</span>
+        <span class="tag" style="background:${priStyle.tagBg};color:${priStyle.tagColor}">중요도 ${escapeHtml(todo.priority)}</span>
+        ${period ? `<span class="tag tag-deadline">${period}</span>` : ""}
+      </div>
+    </div>
+    <div class="todo-item-actions">
+      <button type="button" class="btn-edit" data-id="${todo.id}" aria-label="수정">✏️</button>
+      <button type="button" class="btn-delete" data-id="${todo.id}" aria-label="삭제">삭제</button>
+    </div>`;
+
+  li.addEventListener("click", e => {
+    if (e.target.closest(".btn-edit,.btn-delete,.todo-checkbox-wrap")) return;
+    selectTodo(todo.id);
+  });
+
+  return li;
+}
+
+function createEditItem(todo) {
+  const li = document.createElement("li");
+  li.className = "todo-item editing";
+  li.dataset.id = todo.id;
+
+  const catOptions = categories.map(c =>
+    `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  const priOptions = priorities.map(p =>
+    `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+
+  li.innerHTML = `
+    <div class="edit-form">
+      <input type="text" class="edit-title" placeholder="할 일 제목" />
+      <textarea class="edit-memo" rows="2" placeholder="메모 (선택)"></textarea>
+      <div class="form-row-inline">
+        <select class="edit-category">${catOptions}</select>
+        <select class="edit-priority">${priOptions}</select>
+      </div>
+      <div class="form-row-inline">
+        <div class="form-field">
+          <label>시작일</label>
+          <input type="date" class="edit-start-date" />
+        </div>
+        <div class="form-field">
+          <label>마감일</label>
+          <input type="date" class="edit-deadline" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-save-edit btn-submit">저장</button>
+        <button type="button" class="btn-cancel-edit btn-cancel">취소</button>
+      </div>
+    </div>`;
+
+  li.querySelector(".edit-title").value      = todo.title;
+  li.querySelector(".edit-memo").value       = todo.memo || "";
+  li.querySelector(".edit-category").value   = todo.category;
+  li.querySelector(".edit-priority").value   = todo.priority;
+  li.querySelector(".edit-start-date").value = todo.startDate || "";
+  li.querySelector(".edit-deadline").value   = todo.deadline  || "";
+
+  li.querySelector(".btn-save-edit").addEventListener("click", () => saveEdit(li, todo.id));
+  li.querySelector(".btn-cancel-edit").addEventListener("click", () => {
+    editingTodoId = null;
+    renderList();
+  });
+
+  return li;
+}
+
+function saveEdit(li, id) {
+  const title     = li.querySelector(".edit-title").value.trim();
+  const memo      = li.querySelector(".edit-memo").value.trim();
+  const category  = li.querySelector(".edit-category").value;
+  const priority  = li.querySelector(".edit-priority").value;
+  const startDate = li.querySelector(".edit-start-date").value;
+  const deadline  = li.querySelector(".edit-deadline").value;
+
+  if (!title) { alert("할 일 제목을 입력해주세요."); return; }
+  if (startDate && deadline && startDate > deadline) {
+    alert("시작일은 마감일보다 늦을 수 없어요."); return;
+  }
+
+  const todo = todos.find(t => t.id === id);
+  if (!todo) return;
+  Object.assign(todo, { title, memo, category, priority, startDate, deadline });
+  editingTodoId = null;
+  saveTodos();
+  renderAll();
+}
+
+// ===== 항목 선택 =====
+function selectTodo(id) {
+  if (selectedTodoId === id) { selectedTodoId = null; renderAll(); return; }
+  selectedTodoId = id;
+  const todo = todos.find(t => t.id === id);
+  const refDate = todo?.deadline || todo?.startDate;
+  if (refDate) {
+    const [y, m] = refDate.split("-").map(Number);
+    calendarYear = y; calendarMonth = m - 1;
+  }
+  renderAll();
+}
+
+// ===== 달력 =====
 function getTodoDateRange(todo) {
   const start = todo.startDate || todo.deadline;
-  const end = todo.deadline || todo.startDate;
-  if (!start || !end) {
-    return null;
-  }
+  const end   = todo.deadline  || todo.startDate;
+  if (!start || !end) return null;
   return { start, end };
 }
 
-// Date 객체를 "YYYY-MM-DD" 형식의 문자열로 바꿔주는 함수입니다.
-// (input[type="date"]의 값 형식과 동일하게 맞추기 위해 사용합니다.)
 function toDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-// 달력 보기의 "년/월" 제목을 갱신하는 함수입니다.
-function renderCalendarMonthLabel() {
-  calendarMonthLabelEl.textContent = `${calendarYear}년 ${calendarMonth + 1}월`;
-}
-
-// 이번 달 달력을 그리는 함수입니다.
-// 6주(42칸) 고정 격자로 그려서, 어떤 달이든 항상 일관된 모양으로 보이게 합니다.
 function renderCalendar() {
-  renderCalendarMonthLabel();
+  calendarMonthLabelEl.textContent = `${calendarYear}년 ${calendarMonth + 1}월`;
   calendarGridEl.innerHTML = "";
 
-  const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1);
-  const startWeekday = firstDayOfMonth.getDay(); // 0(일) ~ 6(토)
+  const firstDay     = new Date(calendarYear, calendarMonth, 1);
+  const startWeekday = firstDay.getDay();
+  const gridStart    = new Date(calendarYear, calendarMonth, 1 - startWeekday);
+  const todayKey     = toDateKey(new Date());
 
-  // 달력의 첫 칸(이전 달의 날짜가 섞여 들어갈 수 있음)부터 시작합니다.
-  const gridStartDate = new Date(calendarYear, calendarMonth, 1 - startWeekday);
-  const todayKey = toDateKey(new Date());
+  const filteredIds = new Set(filteredTodos.map(t => t.id));
+  const datedTodos  = todos
+    .filter(t => filteredIds.has(t.id))
+    .map(t => ({ todo: t, range: getTodoDateRange(t) }))
+    .filter(item => item.range !== null);
 
-  // 날짜가 있는(시작일 또는 마감일이 있는) 할 일만 미리 정리해둡니다.
-  const datedTodos = todos
-    .map((todo) => ({ todo, range: getTodoDateRange(todo) }))
-    .filter((item) => item.range !== null);
+  for (let i = 0; i < 42; i++) {
+    const cellDate = new Date(gridStart);
+    cellDate.setDate(gridStart.getDate() + i);
+    const cellKey   = toDateKey(cellDate);
+    const isOutside = cellDate.getMonth() !== calendarMonth;
+    const isToday   = cellKey === todayKey;
 
-  for (let i = 0; i < 42; i += 1) {
-    const cellDate = new Date(gridStartDate);
-    cellDate.setDate(gridStartDate.getDate() + i);
-    renderCalendarCell(cellDate, todayKey, datedTodos);
+    const todosOnDate = datedTodos.filter(({ range }) =>
+      range.start <= cellKey && cellKey <= range.end);
+    const hasSelected = todosOnDate.some(({ todo }) => todo.id === selectedTodoId);
+
+    const cell = document.createElement("div");
+    cell.className = "calendar-cell"
+      + (isOutside   ? " outside-month" : "")
+      + (isToday     ? " is-today"      : "")
+      + (hasSelected ? " has-selected"  : "");
+
+    const dateNum = document.createElement("div");
+    dateNum.className = "calendar-date-number";
+    dateNum.textContent = cellDate.getDate();
+    cell.appendChild(dateNum);
+
+    const MAX = 3;
+    todosOnDate.slice(0, MAX).forEach(({ todo, range }) =>
+      cell.appendChild(createCalendarBar(todo, range, cellKey)));
+
+    if (todosOnDate.length > MAX) {
+      const more = document.createElement("div");
+      more.className = "calendar-more";
+      more.textContent = `+${todosOnDate.length - MAX}개`;
+      cell.appendChild(more);
+    }
+
+    calendarGridEl.appendChild(cell);
   }
-
-  renderCalendarUndated();
 }
 
-// 달력의 날짜 한 칸을 그려서 달력 그리드에 추가하는 함수입니다.
-function renderCalendarCell(cellDate, todayKey, datedTodos) {
-  const cellKey = toDateKey(cellDate);
-  const isOutsideMonth = cellDate.getMonth() !== calendarMonth;
-  const isToday = cellKey === todayKey;
-
-  const cell = document.createElement("div");
-  cell.className =
-    "calendar-cell" +
-    (isOutsideMonth ? " outside-month" : "") +
-    (isToday ? " is-today" : "");
-
-  const dateNumberEl = document.createElement("div");
-  dateNumberEl.className = "calendar-date-number";
-  dateNumberEl.textContent = String(cellDate.getDate());
-  cell.appendChild(dateNumberEl);
-
-  // 이 날짜 칸에 걸쳐 있는 할 일들을 찾습니다.
-  const todosOnThisDate = datedTodos.filter(
-    ({ range }) => range.start <= cellKey && cellKey <= range.end
-  );
-
-  // 한 칸에 너무 많은 막대가 쌓이지 않도록 최대 3개까지만 보여주고, 나머지는 "+n개"로 표시합니다.
-  const MAX_BARS_PER_CELL = 3;
-  todosOnThisDate.slice(0, MAX_BARS_PER_CELL).forEach(({ todo, range }) => {
-    cell.appendChild(createCalendarBar(todo, range, cellKey));
-  });
-
-  if (todosOnThisDate.length > MAX_BARS_PER_CELL) {
-    const moreEl = document.createElement("div");
-    moreEl.className = "calendar-more";
-    moreEl.textContent = `+${todosOnThisDate.length - MAX_BARS_PER_CELL}개`;
-    cell.appendChild(moreEl);
-  }
-
-  calendarGridEl.appendChild(cell);
-}
-
-// 할 일 하나를 달력의 특정 날짜 칸 위에 표시할 "막대(bar)" 요소를 만들어주는 함수입니다.
-// 기간의 시작/중간/끝 위치에 따라 모양(둥근 정도)과 표시 내용을 다르게 만듭니다.
 function createCalendarBar(todo, range, cellKey) {
   const isSingleDay = range.start === range.end;
-  const isRangeStart = cellKey === range.start;
-  const isRangeEnd = cellKey === range.end;
+  const isStart     = cellKey === range.start;
+  const isEnd       = cellKey === range.end;
+  const isSelected  = todo.id === selectedTodoId;
 
-  let positionClass = "bar-middle";
-  if (isSingleDay || isRangeStart) {
-    positionClass = "bar-start"; // 하루짜리 할 일도 시작 모양(양쪽 둥근 모양)으로 보여줍니다.
-  } else if (isRangeEnd) {
-    positionClass = "bar-end";
-  }
+  let posClass = "bar-middle";
+  if (isSingleDay)  posClass = "bar-single";
+  else if (isStart) posClass = "bar-start";
+  else if (isEnd)   posClass = "bar-end";
 
   const bar = document.createElement("button");
   bar.type = "button";
-  bar.className =
-    `calendar-bar bar-category-${todo.category} ${positionClass}` +
-    (todo.completed ? " completed" : "");
+  bar.className = `calendar-bar ${posClass}`
+    + (todo.completed ? " completed"    : "")
+    + (isSelected     ? " bar-selected" : "");
+  bar.style.backgroundColor = getCategoryStyle(todo.category).barColor;
   bar.dataset.id = todo.id;
   bar.title = `${todo.title} (${todo.category} · 중요도 ${todo.priority})`;
+  bar.textContent = (isStart || isSingleDay) ? todo.title : "";
 
-  // 시작일 칸(또는 하루짜리)에만 할 일 제목 글자를 보여주어, 막대가 이어지는 느낌을 줍니다.
-  bar.textContent = isRangeStart || isSingleDay ? todo.title : "";
-
-  // 시작일 칸(또는 하루짜리)에만 삭제(×) 버튼을 함께 보여줍니다.
-  if (isRangeStart || isSingleDay) {
-    const deleteBtn = document.createElement("span");
-    deleteBtn.className = "calendar-bar-delete";
-    deleteBtn.textContent = "×";
-    deleteBtn.dataset.id = todo.id;
-    deleteBtn.setAttribute("role", "button");
-    deleteBtn.setAttribute("aria-label", "삭제");
-    bar.appendChild(deleteBtn);
+  if (isStart || isSingleDay) {
+    const del = document.createElement("span");
+    del.className = "calendar-bar-delete";
+    del.textContent = "×";
+    del.dataset.id = todo.id;
+    del.setAttribute("role", "button");
+    del.setAttribute("aria-label", "삭제");
+    bar.appendChild(del);
   }
 
   return bar;
 }
 
-// 시작일과 마감일이 모두 없는 할 일들을 "날짜가 없는 할 일" 영역에 표시하는 함수입니다.
-function renderCalendarUndated() {
-  const undatedTodos = todos.filter((todo) => getTodoDateRange(todo) === null);
-
-  calendarUndatedListEl.innerHTML = "";
-
-  if (undatedTodos.length === 0) {
-    calendarUndatedEl.classList.add("hidden");
-    return;
-  }
-
-  calendarUndatedEl.classList.remove("hidden");
-
-  undatedTodos.forEach((todo) => {
-    const li = document.createElement("li");
-    li.className = "todo-item" + (todo.completed ? " completed" : "");
-    li.dataset.id = todo.id;
-
-    li.innerHTML = `
-      <label class="todo-checkbox-wrap">
-        <input
-          type="checkbox"
-          class="todo-checkbox"
-          data-id="${todo.id}"
-          ${todo.completed ? "checked" : ""}
-        />
-      </label>
-      <div class="todo-item-main">
-        <span class="todo-title-text">${escapeHtml(todo.title)}</span>
-        <div class="todo-tags">
-          <span class="tag tag-category-${todo.category}">${todo.category}</span>
-          <span class="tag tag-priority-${todo.priority}">중요도 ${todo.priority}</span>
-        </div>
-      </div>
-      <button type="button" class="btn-delete" data-id="${todo.id}" aria-label="삭제">
-        삭제
-      </button>
-    `;
-
-    calendarUndatedListEl.appendChild(li);
-  });
-}
-
-// 전체 완료율을 계산해서 텍스트와 진행 막대에 반영하는 함수입니다.
-function renderProgress() {
-  const total = todos.length;
-  const completedCount = todos.filter((todo) => todo.completed).length;
-  const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100);
-
-  progressTextEl.textContent = `${completedCount} / ${total} 완료 (${percent}%)`;
-  progressBarFillEl.style.width = `${percent}%`;
-}
-
-// 체크박스를 눌러 완료 상태를 토글하는 함수입니다.
-function toggleTodoCompleted(id) {
-  const todo = todos.find((item) => item.id === id);
-  if (!todo) {
-    return;
-  }
+// ===== 할 일 조작 =====
+function toggleComplete(id) {
+  const todo = todos.find(t => t.id === id);
+  if (!todo) return;
   todo.completed = !todo.completed;
-  saveTodos();
-  renderTodos();
+  saveTodos(); renderAll();
 }
 
-// 삭제 버튼을 눌러 해당 할 일을 목록에서 제거하는 함수입니다.
 function deleteTodo(id) {
-  todos = todos.filter((item) => item.id !== id);
-  saveTodos();
-  renderTodos();
+  todos = todos.filter(t => t.id !== id);
+  if (selectedTodoId === id) selectedTodoId = null;
+  if (editingTodoId  === id) editingTodoId  = null;
+  saveTodos(); renderAll();
 }
 
-// 목록 영역 전체에 클릭/변경 이벤트를 한 번만 걸어두고,
-// 실제로 어떤 항목이 눌렸는지는 이벤트 대상(target)을 보고 판단합니다.
-// (할 일이 새로 추가될 때마다 매번 이벤트를 다시 걸지 않아도 되도록 하기 위함입니다.)
-todoListEl.addEventListener("change", (event) => {
-  if (event.target.classList.contains("todo-checkbox")) {
-    const id = event.target.dataset.id;
-    toggleTodoCompleted(id);
-  }
-});
+// ===== 추가 폼 =====
+function handleAddTodo(e) {
+  e.preventDefault();
+  const title     = titleInput.value.trim();
+  const memo      = memoInput.value.trim();
+  const startDate = startDateInput.value;
+  const deadline  = deadlineInput.value;
 
-todoListEl.addEventListener("click", (event) => {
-  if (event.target.classList.contains("btn-delete")) {
-    const id = event.target.dataset.id;
-    deleteTodo(id);
-  }
-});
-
-// "추가" 버튼을 눌러 폼을 제출했을 때 실행되는 함수입니다.
-function handleAddTodo(event) {
-  // 폼의 기본 동작(페이지 새로고침)을 막습니다.
-  event.preventDefault();
-
-  const title = titleInput.value.trim();
-  const startDate = startDateInput.value; // YYYY-MM-DD 문자열 (선택 사항, 비어있을 수 있음)
-  const deadline = deadlineInput.value; // YYYY-MM-DD 문자열 (선택 안 하면 빈 문자열)
-
-  // 제목이 비어있으면 등록하지 않고 안내만 합니다.
-  if (title === "") {
-    alert("할 일 제목을 입력해주세요.");
-    titleInput.focus();
-    return;
-  }
-
-  // 시작일과 마감일이 둘 다 입력되어 있는데, 시작일이 마감일보다 늦은 경우는
-  // 잘못된 기간이므로 등록하지 않고 안내합니다.
+  if (!title) { alert("할 일 제목을 입력해주세요."); titleInput.focus(); return; }
   if (startDate && deadline && startDate > deadline) {
-    alert("시작일은 마감일보다 늦을 수 없어요. 날짜를 다시 확인해주세요.");
-    startDateInput.focus();
-    return;
+    alert("시작일은 마감일보다 늦을 수 없어요."); startDateInput.focus(); return;
   }
 
-  const newTodo = {
-    id: createId(),
-    title: title,
-    category: categorySelect.value, // 학과 / 동아리 / 개인
-    priority: prioritySelect.value, // 상 / 중 / 하
-    startDate: startDate, // YYYY-MM-DD 형식 문자열 (선택 사항, 없으면 빈 문자열)
-    deadline: deadline, // YYYY-MM-DD 형식 문자열 (선택 안 하면 빈 문자열)
-    completed: false, // 완료 여부 (기본값: 미완료)
-  };
+  todos.push({
+    id: createId(), title, memo,
+    category:  categorySelect.value,
+    priority:  prioritySelect.value,
+    startDate, deadline,
+    completed: false,
+    createdAt: Date.now(),
+  });
 
-  // 새 할 일을 목록 맨 뒤에 추가합니다.
-  todos.push(newTodo);
-
-  // 변경된 목록을 저장하고, 화면을 다시 그립니다.
   saveTodos();
-  renderTodos();
-
-  // 입력 폼을 초기화하고 다시 제목 입력창에 포커스를 줍니다.
   todoForm.reset();
-  prioritySelect.value = "중"; // 중요도 기본값을 "중"으로 다시 맞춰줍니다.
+  // 중요도 기본값 재설정 (중간 항목)
+  prioritySelect.value = priorities[Math.min(1, priorities.length - 1)] || priorities[0];
+  renderAll();
   titleInput.focus();
 }
 
-// 폼 제출 이벤트를 연결합니다.
-todoForm.addEventListener("submit", handleAddTodo);
-
-// "목록 보기 / 달력 보기"를 전환하는 함수입니다.
-function switchView(view) {
-  currentView = view;
-
-  viewToggleButtons.forEach((button) => {
-    const isActive = button.dataset.view === view;
-    button.classList.toggle("active", isActive);
-    button.setAttribute("aria-selected", isActive ? "true" : "false");
-  });
-
-  if (view === "calendar") {
-    listViewEl.classList.add("hidden");
-    calendarViewEl.classList.remove("hidden");
-    renderCalendar();
-  } else {
-    calendarViewEl.classList.add("hidden");
-    listViewEl.classList.remove("hidden");
-  }
+// ===== 다크 모드 =====
+function applyDarkMode(dark) {
+  appEl.classList.toggle("dark", dark);
+  document.body.classList.toggle("dark", dark);
+  darkModeBtn.textContent = dark ? "☀️" : "🌙";
+  localStorage.setItem(DARK_KEY, dark);
 }
 
-// 보기 전환 버튼 클릭 이벤트를 연결합니다.
-viewToggleButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    switchView(button.dataset.view);
+// ===== 내보내기 / 가져오기 =====
+function exportData() {
+  const backup = { todos, categories, priorities };
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url;
+  a.download = `smart-campus-planner-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+
+      // 새 포맷: { todos, categories, priorities }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray(parsed.todos)) {
+        const todoCount = parsed.todos.length;
+        const hasSettings = Array.isArray(parsed.categories) && Array.isArray(parsed.priorities);
+        const msg = hasSettings
+          ? `할 일 ${todoCount}개 + 카테고리/중요도 설정을 가져옵니다.\n현재 데이터를 덮어쓸까요?`
+          : `할 일 ${todoCount}개를 가져옵니다.\n현재 데이터를 덮어쓸까요?`;
+        if (!confirm(msg)) return;
+        todos = parsed.todos;
+        if (hasSettings) {
+          if (parsed.categories.length > 0) categories = parsed.categories;
+          if (parsed.priorities.length > 0) priorities  = parsed.priorities;
+          saveSettings();
+          updateSelectOptions();
+        }
+        saveTodos(); renderAll();
+      // 이전 포맷: 할 일 배열만
+      } else if (Array.isArray(parsed)) {
+        if (!confirm(`할 일 ${parsed.length}개를 가져옵니다.\n현재 데이터를 덮어쓸까요?`)) return;
+        todos = parsed;
+        saveTodos(); renderAll();
+      } else {
+        throw new Error();
+      }
+    } catch { alert("파일을 읽을 수 없어요. 올바른 JSON 파일인지 확인해주세요."); }
+  };
+  reader.readAsText(file);
+  importInput.value = "";
+}
+
+// ===== 설정 모달 =====
+function openSettings() {
+  settingsModal.classList.remove("hidden");
+  renderSettingsModal();
+}
+
+function closeSettings() {
+  settingsModal.classList.add("hidden");
+}
+
+function renderSettingsModal() {
+  renderChipList(settingsCategoryList, categories, CATEGORY_PALETTE, removeCategory);
+  renderChipList(settingsPriorityList, priorities, PRIORITY_PALETTE, removePriority);
+}
+
+function renderChipList(container, items, palette, removeFn) {
+  container.innerHTML = "";
+  items.forEach((item, idx) => {
+    const color = palette[idx % palette.length];
+    const chip = document.createElement("span");
+    chip.className = "settings-chip";
+    chip.style.background = color.tagBg;
+    chip.style.color = color.tagColor;
+
+    const label = document.createTextNode(item + " ");
+    const delBtn = document.createElement("button");
+    delBtn.className = "chip-delete";
+    delBtn.textContent = "×";
+    delBtn.setAttribute("aria-label", "삭제");
+    delBtn.addEventListener("click", () => removeFn(item));
+
+    chip.appendChild(label);
+    chip.appendChild(delBtn);
+    container.appendChild(chip);
+  });
+}
+
+function addCategory() {
+  const name = newCategoryInput.value.trim();
+  if (!name) return;
+  if (categories.includes(name)) { alert("이미 있는 카테고리예요."); return; }
+  categories.push(name);
+  saveSettings(); updateSelectOptions(); renderSettingsModal(); renderAll();
+  newCategoryInput.value = "";
+}
+
+function removeCategory(name) {
+  if (categories.length <= 1) { alert("카테고리는 최소 1개가 필요해요."); return; }
+  categories = categories.filter(c => c !== name);
+  saveSettings(); updateSelectOptions(); renderSettingsModal(); renderAll();
+}
+
+function addPriority() {
+  const name = newPriorityInput.value.trim();
+  if (!name) return;
+  if (priorities.includes(name)) { alert("이미 있는 중요도예요."); return; }
+  priorities.push(name);
+  saveSettings(); updateSelectOptions(); renderSettingsModal(); renderAll();
+  newPriorityInput.value = "";
+}
+
+function removePriority(name) {
+  if (priorities.length <= 1) { alert("중요도는 최소 1개가 필요해요."); return; }
+  priorities = priorities.filter(p => p !== name);
+  saveSettings(); updateSelectOptions(); renderSettingsModal(); renderAll();
+}
+
+// ===== 모바일 탭 전환 =====
+mobileTabBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    mobileTabBtns.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    mainLayoutEl.dataset.tab = btn.dataset.tab;
+    if (btn.dataset.tab === "calendar") renderCalendar();
   });
 });
 
-// 달력의 이전 달/다음 달 이동 버튼 이벤트를 연결합니다.
-calendarPrevBtn.addEventListener("click", () => {
-  calendarMonth -= 1;
-  if (calendarMonth < 0) {
-    calendarMonth = 11;
-    calendarYear -= 1;
-  }
-  renderCalendar();
+// ===== 이벤트 연결 =====
+todoForm.addEventListener("submit", handleAddTodo);
+
+toggleFormBtn.addEventListener("click", () => {
+  const isHidden = todoForm.classList.toggle("hidden");
+  toggleFormBtn.textContent = isHidden ? "+ 할 일 추가" : "− 닫기";
+  if (!isHidden) titleInput.focus();
 });
 
-calendarNextBtn.addEventListener("click", () => {
-  calendarMonth += 1;
-  if (calendarMonth > 11) {
-    calendarMonth = 0;
-    calendarYear += 1;
-  }
-  renderCalendar();
+cancelFormBtn.addEventListener("click", () => {
+  todoForm.classList.add("hidden");
+  toggleFormBtn.textContent = "+ 할 일 추가";
+  todoForm.reset();
+  prioritySelect.value = priorities[Math.min(1, priorities.length - 1)] || priorities[0];
 });
 
-// 달력의 막대(할 일)를 클릭하면 완료 체크가 토글되도록 하고,
-// 막대 위의 × 버튼을 클릭하면 삭제되도록 연결합니다.
-calendarGridEl.addEventListener("click", (event) => {
-  if (event.target.classList.contains("calendar-bar-delete")) {
-    // ×(삭제) 버튼을 눌렀을 때는 완료 토글이 함께 일어나지 않도록 이벤트 전파를 막습니다.
-    event.stopPropagation();
-    deleteTodo(event.target.dataset.id);
-    return;
-  }
+searchInput.addEventListener("input", e => { searchQuery = e.target.value; renderAll(); });
+filterCategoryEl.addEventListener("change", e => { filterCategory = e.target.value; renderAll(); });
+filterPriorityEl.addEventListener("change", e => { filterPriority = e.target.value; renderAll(); });
+filterStatusEl.addEventListener("change",   e => { filterStatus   = e.target.value; renderAll(); });
+sortByEl.addEventListener("change",         e => { sortBy         = e.target.value; renderAll(); });
 
-  const bar = event.target.closest(".calendar-bar");
+darkModeBtn.addEventListener("click", () => { isDarkMode = !isDarkMode; applyDarkMode(isDarkMode); });
+exportBtn.addEventListener("click", exportData);
+importInput.addEventListener("change", e => importData(e.target.files[0]));
+
+settingsBtn.addEventListener("click", openSettings);
+closeSettingsBtn.addEventListener("click", closeSettings);
+settingsModal.addEventListener("click", e => { if (e.target === settingsModal) closeSettings(); });
+
+addCategoryBtn.addEventListener("click", addCategory);
+addPriorityBtn.addEventListener("click", addPriority);
+newCategoryInput.addEventListener("keydown", e => { if (e.key === "Enter") addCategory(); });
+newPriorityInput.addEventListener("keydown", e => { if (e.key === "Enter") addPriority(); });
+
+// 목록 이벤트 위임
+todoListEl.addEventListener("change", e => {
+  if (e.target.classList.contains("todo-checkbox")) toggleComplete(e.target.dataset.id);
+});
+todoListEl.addEventListener("click", e => {
+  if (e.target.classList.contains("btn-delete")) { deleteTodo(e.target.dataset.id); return; }
+  if (e.target.classList.contains("btn-edit"))   { editingTodoId = e.target.dataset.id; renderList(); }
+});
+
+// 달력 이벤트 위임
+calendarGridEl.addEventListener("click", e => {
+  if (e.target.classList.contains("calendar-bar-delete")) {
+    e.stopPropagation(); deleteTodo(e.target.dataset.id); return;
+  }
+  const bar = e.target.closest(".calendar-bar");
   if (bar) {
-    toggleTodoCompleted(bar.dataset.id);
+    selectTodo(bar.dataset.id);
+    requestAnimationFrame(() => {
+      todoListEl.querySelector(`[data-id="${bar.dataset.id}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
   }
 });
 
-// "날짜가 없는 할 일" 목록에도 완료 체크/삭제 이벤트를 연결합니다.
-calendarUndatedListEl.addEventListener("change", (event) => {
-  if (event.target.classList.contains("todo-checkbox")) {
-    toggleTodoCompleted(event.target.dataset.id);
-  }
+calendarPrevBtn.addEventListener("click", () => {
+  calendarMonth--;
+  if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+  renderCalendar();
+});
+calendarNextBtn.addEventListener("click", () => {
+  calendarMonth++;
+  if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+  renderCalendar();
 });
 
-calendarUndatedListEl.addEventListener("click", (event) => {
-  if (event.target.classList.contains("btn-delete")) {
-    deleteTodo(event.target.dataset.id);
-  }
-});
-
-// 페이지가 처음 열렸을 때 목록을 한 번 그려줍니다.
-// (localStorage에 저장된 할 일이 있다면 여기서 함께 화면에 표시됩니다.)
-renderTodos();
+// ===== 초기화 =====
+applyDarkMode(isDarkMode);
+updateSelectOptions();
+renderAll();
